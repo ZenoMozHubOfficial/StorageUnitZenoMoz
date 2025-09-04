@@ -1,0 +1,318 @@
+-- // Config
+_G.HitboxSize = 50
+_G.Enabled = false
+_G.ESPNearest = true
+_G.TextLabelESP = false
+local ToggleKey = Enum.KeyCode.T
+
+-- // Services
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- // GUI Setup
+local ScreenGui = Instance.new("ScreenGui", PlayerGui)
+ScreenGui.ResetOnSpawn = false
+
+-- Main frame
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 280, 0, 70)
+MainFrame.Position = UDim2.new(0.05, 0, 0.7, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Visible = true
+
+local cornerMain = Instance.new("UICorner", MainFrame)
+cornerMain.CornerRadius = UDim.new(1,0)
+
+local UIListLayout = Instance.new("UIListLayout", MainFrame)
+UIListLayout.FillDirection = Enum.FillDirection.Horizontal
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+UIListLayout.Padding = UDim.new(0, 10)
+
+-- Click sound
+local function MakeClickSound(parent)
+	local s = Instance.new("Sound", parent)
+	s.SoundId = "rbxassetid://12222132"
+	s.Volume = 1
+	return s
+end
+
+-- Button Maker
+local function MakeImageButton(parent, id, name)
+	local btn = Instance.new("ImageButton", parent)
+	btn.Size = UDim2.new(0, 40, 0, 40)
+	btn.Image = "rbxassetid://"..id
+	btn.Name = name
+	btn.BackgroundTransparency = 1
+	local corner = Instance.new("UICorner", btn)
+	corner.CornerRadius = UDim.new(1,0)
+	MakeClickSound(btn)
+
+	-- Press animation
+	btn.MouseButton1Down:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(0, 36, 0, 36)}):Play()
+	end)
+	btn.MouseButton1Up:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(0, 40, 0, 40)}):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.1), {Size = UDim2.new(0, 40, 0, 40)}):Play()
+	end)
+
+	return btn
+end
+
+-- Buttons
+local EyeBtn = MakeImageButton(MainFrame, 84391456254700, "ESP")
+local HitboxBtn = MakeImageButton(MainFrame, 131637438242539, "Hitbox")
+local ChatBtn = MakeImageButton(MainFrame, 120217928117851, "ChatESP")
+
+-- Minimize button
+local MinimizeBtn = Instance.new("TextButton", MainFrame)
+MinimizeBtn.Size = UDim2.new(0, 40, 0, 40)
+MinimizeBtn.Text = "-"
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MinimizeBtn.TextColor3 = Color3.new(1,1,1)
+MinimizeBtn.Font = Enum.Font.SourceSansBold
+MinimizeBtn.TextScaled = true
+MinimizeBtn.BorderSizePixel = 0
+local cornerMini = Instance.new("UICorner", MinimizeBtn)
+cornerMini.CornerRadius = UDim.new(1,0)
+MakeClickSound(MinimizeBtn)
+
+-- Press resize anim
+local function AddPressAnim(btn, baseSize)
+	btn.MouseButton1Down:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.1), {Size = baseSize - UDim2.new(0,4,0,4)}):Play()
+	end)
+	btn.MouseButton1Up:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.1), {Size = baseSize}):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.1), {Size = baseSize}):Play()
+	end)
+end
+AddPressAnim(MinimizeBtn, UDim2.new(0,40,0,40))
+
+-- Settings button
+local SettingsBtn = MakeImageButton(MainFrame, 81265917381759, "Settings")
+
+-- ZMH unminimizer
+local CircleBtn = Instance.new("TextButton", ScreenGui)
+CircleBtn.Size = UDim2.new(0, 60, 0, 60)
+CircleBtn.Position = MainFrame.Position
+CircleBtn.Text = "ZMH"
+CircleBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+CircleBtn.TextColor3 = Color3.new(1,1,1)
+CircleBtn.Font = Enum.Font.SourceSansBold
+CircleBtn.TextScaled = true
+CircleBtn.BorderSizePixel = 0
+CircleBtn.Visible = false
+CircleBtn.ZIndex = 10
+CircleBtn.Active = true
+CircleBtn.Draggable = true
+local cornerCircle = Instance.new("UICorner", CircleBtn)
+cornerCircle.CornerRadius = UDim.new(1,0)
+MakeClickSound(CircleBtn)
+AddPressAnim(CircleBtn, UDim2.new(0,60,0,60))
+
+-- SizeBox
+local SizeBox = Instance.new("TextBox", ScreenGui)
+SizeBox.Size = UDim2.new(0, 180, 0, 40)
+SizeBox.Position = MainFrame.Position + UDim2.new(0,0,0,-50)
+SizeBox.PlaceholderText = "Enter 1-1000 size"
+SizeBox.Text = tostring(_G.HitboxSize)
+SizeBox.Visible = false
+SizeBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+SizeBox.TextColor3 = Color3.fromRGB(255, 165, 0)
+SizeBox.TextScaled = true
+SizeBox.BorderSizePixel = 0
+local cornerBox = Instance.new("UICorner", SizeBox)
+cornerBox.CornerRadius = UDim.new(1,0)
+
+-- Fade helpers (only affect MainFrame, not children buttons!)
+local function FadeFrameOut(frame, duration)
+	TweenService:Create(frame, TweenInfo.new(duration), {BackgroundTransparency = 1}):Play()
+	wait(duration)
+	frame.Visible = false
+end
+
+local function FadeFrameIn(frame, duration)
+	frame.BackgroundTransparency = 1
+	frame.Visible = true
+	TweenService:Create(frame, TweenInfo.new(duration), {BackgroundTransparency = 0}):Play()
+end
+
+-- Minimize / Restore
+local function SlideOut()
+	FadeFrameOut(MainFrame,0.3)
+	CircleBtn.Visible = true
+	CircleBtn.BackgroundTransparency = 1
+	TweenService:Create(CircleBtn, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
+end
+
+local function SlideIn()
+	FadeFrameIn(MainFrame,0.3)
+	CircleBtn.Visible = false
+end
+
+MinimizeBtn.MouseButton1Click:Connect(SlideOut)
+CircleBtn.MouseButton1Click:Connect(SlideIn)
+
+-- Reset hitboxes
+local function ResetHitboxes()
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character then
+			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				pcall(function()
+					hrp.Size = Vector3.new(2,2,1)
+					hrp.Transparency = 1
+					hrp.CanCollide = true
+					hrp.Material = Enum.Material.Plastic
+				end)
+			end
+		end
+	end
+end
+
+-- Button logic
+HitboxBtn.MouseButton1Click:Connect(function()
+	HitboxBtn:FindFirstChildOfClass("Sound"):Play()
+	_G.Enabled = not _G.Enabled
+	HitboxBtn.Image = "rbxassetid://"..(_G.Enabled and 139055412155755 or 131637438242539)
+	if not _G.Enabled then ResetHitboxes() end
+end)
+
+EyeBtn.MouseButton1Click:Connect(function()
+	EyeBtn:FindFirstChildOfClass("Sound"):Play()
+	_G.ESPNearest = not _G.ESPNearest
+	EyeBtn.Image = "rbxassetid://"..(_G.ESPNearest and 92309862803592 or 84391456254700)
+end)
+
+SettingsBtn.MouseButton1Click:Connect(function()
+	SettingsBtn:FindFirstChildOfClass("Sound"):Play()
+	SizeBox.Visible = not SizeBox.Visible
+end)
+
+ChatBtn.MouseButton1Click:Connect(function()
+	ChatBtn:FindFirstChildOfClass("Sound"):Play()
+	_G.TextLabelESP = not _G.TextLabelESP
+end)
+
+SizeBox.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		local n = tonumber(SizeBox.Text)
+		if n and n >= 1 and n <= 1000 then
+			_G.HitboxSize = math.floor(n)
+		else
+			SizeBox.Text = tostring(_G.HitboxSize)
+		end
+	end
+end)
+
+UIS.InputBegan:Connect(function(input, gp)
+	if not gp and input.KeyCode == ToggleKey then
+		_G.Enabled = not _G.Enabled
+		HitboxBtn.Image = "rbxassetid://"..(_G.Enabled and 139055412155755 or 131637438242539)
+		if not _G.Enabled then ResetHitboxes() end
+	end
+end)
+
+-- Nearest player
+local function GetNearestAlive()
+	local lpChar = LocalPlayer.Character
+	local myHRP = lpChar and lpChar:FindFirstChild("HumanoidRootPart")
+	if not myHRP then return nil end
+	local nearestChar, minDist = nil, math.huge
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character then
+			local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+			if hum and hum.Health > 0 and hrp then
+				local d = (hrp.Position - myHRP.Position).Magnitude
+				if d < minDist then
+					minDist = d
+					nearestChar = plr.Character
+				end
+			end
+		end
+	end
+	return nearestChar
+end
+
+-- ESP highlight
+local highlight = Instance.new("Highlight")
+highlight.Name = "NearestESPHighlight"
+highlight.FillTransparency = 1
+highlight.OutlineTransparency = 0
+highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+highlight.Enabled = false
+highlight.Parent = PlayerGui
+
+-- Rainbow
+local function RainbowOutline()
+	local t = tick() % 5 / 5
+	return Color3.fromHSV(t, 1, 1)
+end
+
+-- Billboard
+local BillboardGui = Instance.new("BillboardGui")
+BillboardGui.Size = UDim2.new(0,200,0,50)
+BillboardGui.StudsOffset = Vector3.new(0,3,0)
+BillboardGui.AlwaysOnTop = true
+local Label = Instance.new("TextLabel", BillboardGui)
+Label.Size = UDim2.new(1,0,1,0)
+Label.BackgroundTransparency = 1
+Label.TextColor3 = Color3.new(1,1,0)
+Label.TextScaled = true
+Label.Font = Enum.Font.SourceSansBold
+Label.Text = "NEAREST"
+
+-- Main loop
+RunService.RenderStepped:Connect(function()
+	-- Hitbox expand
+	if _G.Enabled then
+		for _, plr in ipairs(Players:GetPlayers()) do
+			if plr ~= LocalPlayer and plr.Character then
+				local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+				if hrp then
+					pcall(function()
+						hrp.Size = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
+						hrp.Transparency = 0.7
+						hrp.BrickColor = BrickColor.new("Bright orange")
+						hrp.Material = Enum.Material.Neon
+						hrp.CanCollide = false
+					end)
+				end
+			end
+		end
+	end
+
+	-- ESP nearest
+	local targetChar = GetNearestAlive()
+	if _G.ESPNearest and targetChar then
+		highlight.Adornee = targetChar
+		highlight.Enabled = true
+		highlight.OutlineColor = RainbowOutline()
+	else
+		highlight.Enabled = false
+		highlight.Adornee = nil
+	end
+
+	-- TextLabel ESP
+	if _G.TextLabelESP and targetChar then
+		if BillboardGui.Parent ~= targetChar:FindFirstChild("Head") then
+			BillboardGui.Parent = targetChar:FindFirstChild("Head")
+		end
+	else
+		BillboardGui.Parent = nil
+	end
+end)
