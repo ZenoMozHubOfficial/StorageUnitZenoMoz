@@ -1,0 +1,253 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local StarterGui = game:GetService("StarterGui")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- === Main GUI ===
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SkyeMozGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = playerGui
+
+-- === Click Sound ===
+local clickSound = Instance.new("Sound")
+clickSound.SoundId = "rbxassetid://911882078"
+clickSound.Volume = 0.5
+clickSound.Parent = ScreenGui
+
+-- === Notification Wrapper ===
+local function notify(title, text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title or "SkyeMoz",
+            Text = text or "",
+            Duration = duration or 3
+        })
+    end)
+end
+
+-- === Button Creator (no trigger if held >= 1s) ===
+local function createButton(parent, text, size, pos, draggable)
+    local btn = Instance.new("TextButton")
+    btn.Size = size
+    btn.Position = pos
+    btn.BackgroundColor3 = Color3.fromRGB(40,40,40)
+    btn.BorderSizePixel = 0
+    btn.Active = true
+    btn.AutoButtonColor = false
+    btn.Draggable = draggable or false
+    btn.Text = text
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.TextScaled = true
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0,10)
+    corner.Parent = btn
+
+    local grad = Instance.new("UIGradient")
+    grad.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(20,20,20)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(80,80,80))
+    }
+    grad.Rotation = 90
+    grad.Parent = btn
+
+    -- Scale animation
+    local function scale(sizeTarget)
+        TweenService:Create(btn, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size=sizeTarget}):Play()
+    end
+
+    -- Hold vs click
+    local mouseDownTime = 0
+    local quickClick = Instance.new("BindableEvent")
+
+    btn.MouseButton1Down:Connect(function()
+        mouseDownTime = tick()
+        scale(size + UDim2.new(0,10,0,10))
+    end)
+
+    btn.MouseButton1Up:Connect(function()
+        scale(size)
+        local held = tick() - mouseDownTime
+        if held < 1 then
+            clickSound:Play()
+            quickClick:Fire()
+        end
+    end)
+
+    btn.MouseLeave:Connect(function() scale(size) end)
+
+    return btn, quickClick.Event
+end
+
+-- === TextBox Creator (Draggable Frame Wrapper) ===
+local function createBox(parent, placeholder, text, size, pos)
+    -- Wrapper frame = the draggable container
+    local wrapper = Instance.new("Frame")
+    wrapper.Size = size
+    wrapper.Position = pos
+    wrapper.BackgroundTransparency = 1
+    wrapper.Active = true
+    wrapper.Draggable = true
+    wrapper.Parent = parent
+
+    -- Actual textbox inside wrapper
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(1, 0, 1, 0)
+    box.Position = UDim2.new(0, 0, 0, 0)
+    box.PlaceholderText = placeholder
+    box.Text = text or ""
+    box.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    box.BackgroundTransparency = 0.1
+    box.TextColor3 = Color3.new(1,1,1)
+    box.Font = Enum.Font.Gotham
+    box.TextSize = 18
+    box.ClearTextOnFocus = false
+    box.Parent = wrapper
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0,8)
+    corner.Parent = box
+
+    return box, wrapper
+end
+
+-- === Minimize Button (NOT draggable) ===
+local minimized = false
+local minBtn, minClick = createButton(ScreenGui,"-",UDim2.new(0,30,0,30),UDim2.new(0,10,0,10),false)
+
+-- === Egor Mode ===
+local egorButton, egorClick = createButton(ScreenGui,"Egor: OFF",UDim2.new(0,140,0,50),UDim2.new(0,50,0,50),true)
+local egorSpeedBox, egorWrapper = createBox(ScreenGui,"Anim Speed ∞","1",UDim2.new(0,140,0,35),UDim2.new(0,200,0,55))
+
+local egorEnabled = false
+local runAnimId = "rbxassetid://913376220"
+local runTrack, runConnection
+
+local function getAnimSpeed()
+    local val = tonumber(egorSpeedBox.Text)
+    return val and val>0 and val or 1
+end
+
+local function playRunAnimation(humanoid)
+    local animator = humanoid:FindFirstChildWhichIsA("Animator") or Instance.new("Animator",humanoid)
+    local runAnim = Instance.new("Animation")
+    runAnim.AnimationId = runAnimId
+    runTrack = animator:LoadAnimation(runAnim)
+    runTrack.Priority = Enum.AnimationPriority.Movement
+    runTrack:AdjustSpeed(getAnimSpeed())
+    runTrack:Play()
+
+    runConnection = RunService.RenderStepped:Connect(function()
+        if humanoid.MoveDirection.Magnitude==0 then
+            if runTrack.IsPlaying then runTrack:Stop() end
+        else
+            if not runTrack.IsPlaying then runTrack:Play() end
+            runTrack:AdjustSpeed(getAnimSpeed())
+        end
+    end)
+end
+
+local function stopRunAnimation()
+    if runTrack then runTrack:Stop() end
+    if runConnection then runConnection:Disconnect() end
+end
+
+local function enableEgor()
+    local char = player.Character
+    if char then
+        local humanoid = char:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed=3
+            playRunAnimation(humanoid)
+            egorButton.Text="Egor: ON"
+            notify("SkyeMoz","Egor Enabled",3)
+        end
+    end
+end
+
+local function disableEgor()
+    local char = player.Character
+    if char then
+        local humanoid = char:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed=16
+            stopRunAnimation()
+            egorButton.Text="Egor: OFF"
+            notify("SkyeMoz","Egor Disabled",3)
+        end
+    end
+end
+
+egorClick:Connect(function()
+    egorEnabled = not egorEnabled
+    if egorEnabled then enableEgor() else disableEgor() end
+end)
+
+egorSpeedBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if egorEnabled and runTrack then
+        runTrack:AdjustSpeed(getAnimSpeed())
+    end
+end)
+
+player.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    if egorEnabled then enableEgor() else disableEgor() end
+end)
+
+-- === FakeLag ===
+local fakeLagButton, fakeLagClick = createButton(ScreenGui,"FakeLag: OFF",UDim2.new(0,140,0,50),UDim2.new(0,50,0,120),true)
+local waitBox, waitWrapper = createBox(ScreenGui,"Wait Time","0.05",UDim2.new(0,100,0,35),UDim2.new(0,200,0,125))
+local delayBox, delayWrapper = createBox(ScreenGui,"Delay Time","0.4",UDim2.new(0,100,0,35),UDim2.new(0,310,0,125))
+
+local fakeLag=false
+local waitTime=0.05
+local delayTime=0.4
+
+fakeLagClick:Connect(function()
+    fakeLag = not fakeLag
+    fakeLagButton.Text=fakeLag and "FakeLag: ON" or "FakeLag: OFF"
+    notify("SkyeMoz","FakeLag "..(fakeLag and "Enabled" or "Disabled"),3)
+end)
+
+waitBox.FocusLost:Connect(function() waitTime = tonumber(waitBox.Text) or waitTime end)
+delayBox.FocusLost:Connect(function() delayTime = tonumber(delayBox.Text) or delayTime end)
+
+coroutine.wrap(function()
+    while true do
+        task.wait(waitTime)
+        if fakeLag then
+            local char = player.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.Anchored=true
+                task.wait(delayTime)
+                char.HumanoidRootPart.Anchored=false
+            end
+        end
+    end
+end)()
+
+-- === Destroy GUI ===
+local destroyButton, destroyClick = createButton(ScreenGui,"Destroy GUI",UDim2.new(0,140,0,50),UDim2.new(0,50,0,190),true)
+destroyClick:Connect(function()
+    notify("SkyeMoz","GUI Destroyed",3)
+    ScreenGui:Destroy()
+end)
+
+-- === Minimize/Maximize Logic ===
+minClick:Connect(function()
+    minimized = not minimized
+    local guiElements={egorButton,egorWrapper,fakeLagButton,waitWrapper,delayWrapper,destroyButton}
+    for _,obj in pairs(guiElements) do
+        if obj then obj.Visible = not minimized end
+    end
+    minBtn.Text = minimized and "+" or "-"
+end)
+
+-- === Initial Pop-up Notification ===
+notify("SkyeMoz","GUI Loaded ✅",3)
